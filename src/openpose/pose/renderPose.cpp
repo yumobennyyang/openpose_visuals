@@ -125,12 +125,12 @@ namespace op
                 // Custom pose styling:
                 // - Points: opaque orange circles
                 // - Lines: dotted (left=blue, right=red, center=white)
-                const float circleScale = 1.0f; // normal size
+                const float circleScale = 0.85f; // normal size
                 const bool forceFilledCircles = true; // opaque filled
                 const bool dashedLines = true; // dotted
-                const int dotLenPx = 3; // small dots
-                const int gapLenPx = 3; // small gaps
-                const int thinLinePx = 2; // slightly thicker than face
+                const int dotLenPx = 6; // small dots
+                const int gapLenPx = 6; // small gaps
+                const int thinLinePx = 1; // slightly thicker than face
 
                 renderKeypointsCpuCustomPerPair(
                     frameArray, poseKeypoints, pairs,
