@@ -18,9 +18,25 @@ namespace op
                 const auto& pairs = FACE_PAIRS_RENDER;
                 const auto& scales = FACE_SCALES_RENDER;
 
-                // Render keypoints
-                renderKeypointsCpu(frameArray, faceKeypoints, pairs, FACE_COLORS_RENDER, thicknessCircleRatio,
-                                   thicknessLineRatioWRTCircle, scales, renderThreshold);
+                // Custom face styling:
+                // - Points: opaque orange RGB(239,106,17)
+                // - Smaller circles
+                // - Lines: thin white dashed
+                const std::vector<float> facePointColors {239.f, 106.f, 17.f};
+                const std::vector<float> faceLineColors  {255.f, 255.f, 255.f};
+                const float circleScale = 0.75f; // slightly smaller
+                const bool forceFilledCircles = true; // opaque filled
+                const bool dashedLines = true;
+                const int dashLenPx = 6;
+                const int gapLenPx = 6;
+                const int thinLinePx = 1; // thin
+
+                renderKeypointsCpuCustom(
+                    frameArray, faceKeypoints, pairs,
+                    facePointColors, faceLineColors,
+                    thicknessCircleRatio, thicknessLineRatioWRTCircle, scales, renderThreshold,
+                    circleScale, forceFilledCircles,
+                    dashedLines, dashLenPx, gapLenPx, thinLinePx);
             }
         }
         catch (const std::exception& e)

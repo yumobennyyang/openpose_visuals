@@ -286,6 +286,279 @@ namespace op
         const std::vector<double>& poseScales, const double threshold);
 
     template <typename T>
+    void renderKeypointsCpuCustom(
+        Array<T>& frameArray, const Array<T>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<T> colorsPoints, const std::vector<T> colorsLines,
+        const T thicknessCircleRatio, const T thicknessLineRatioWRTCircle,
+        const std::vector<T>& poseScales, const T threshold,
+        const T circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx)
+    {
+        try
+        {
+            if (!frameArray.empty())
+            {
+                auto frame = frameArray.getCvMat();
+                cv::Mat cvFrame = OP_OP2CVMAT(frame);
+                if (cvFrame.channels() != 3)
+                    error(errorMessage, __LINE__, __FUNCTION__, __FILE__);
+
+                const auto width = cvFrame.size[1];
+                const auto height = cvFrame.size[0];
+                const auto area = width * height;
+                cv::Mat frameBGR(height, width, CV_32FC3, cvFrame.data);
+
+                const auto lineType = 8;
+                const auto shift = 0;
+                const auto numberColorsPoints = colorsPoints.size();
+                const auto numberColorsLines = colorsLines.size();
+                const auto numberScales = poseScales.size();
+                const auto thresholdRectangle = T(0.1);
+                const auto numberKeypoints = keypoints.getSize(1);
+
+                for (auto person = 0 ; person < keypoints.getSize(0) ; person++)
+                {
+                    const auto personRectangle = getKeypointsRectangle(keypoints, person, thresholdRectangle);
+                    if (personRectangle.area() > 0)
+                    {
+                        const auto ratioAreas = fastMin(
+                            T(1), fastMax(
+                                personRectangle.width/(T)width, personRectangle.height/(T)height));
+                        const auto thicknessRatio = fastMax(
+                            positiveIntRound(std::sqrt(area)* thicknessCircleRatio * ratioAreas), 2);
+                        const auto thicknessCircleBase = (forceFilledCircles ? -1 : fastMax(1, (ratioAreas > T(0.05) ? thicknessRatio : -1)));
+                        const auto thicknessLine = fastMax(1, positiveIntRound(thicknessRatio * thicknessLineRatioWRTCircle));
+                        const auto radius = thicknessRatio / 2;
+
+                        // Lines
+                        for (auto pair = 0u ; pair < pairs.size() ; pair+=2)
+                        {
+                            const auto index1 = (person * numberKeypoints + pairs[pair]) * keypoints.getSize(2);
+                            const auto index2 = (person * numberKeypoints + pairs[pair+1]) * keypoints.getSize(2);
+                            if (keypoints[index1+2] > threshold && keypoints[index2+2] > threshold)
+                            {
+                                const auto thicknessLineScaled = (thinLinePx > 0 ? thinLinePx : positiveIntRound(
+                                    thicknessLine * poseScales[pairs[pair+1] % numberScales]));
+                                const auto colorIndex = pairs[pair+1]*3;
+                                const cv::Scalar colorLine{
+                                    colorsLines[(colorIndex+2) % numberColorsLines],
+                                    colorsLines[(colorIndex+1) % numberColorsLines],
+                                    colorsLines[colorIndex % numberColorsLines]
+                                };
+                                const cv::Point keypoint1{
+                                    positiveIntRound(keypoints[index1]), positiveIntRound(keypoints[index1+1])};
+                                const cv::Point keypoint2{
+                                    positiveIntRound(keypoints[index2]), positiveIntRound(keypoints[index2+1])};
+                                if (!dashedLines)
+                                    cv::line(frameBGR, keypoint1, keypoint2, colorLine, thicknessLineScaled, lineType, shift);
+                                else
+                                {
+                                    // Dashed line: draw segments
+                                    const cv::Point2f p1{(float)keypoint1.x, (float)keypoint1.y};
+                                    const cv::Point2f p2{(float)keypoint2.x, (float)keypoint2.y};
+                                    const cv::Point2f d = p2 - p1;
+                                    const auto len = std::sqrt(d.x*d.x + d.y*d.y);
+                                    if (len > 1.f)
+                                    {
+                                        const cv::Point2f dir = d * (1.f / len);
+                                        const int dash = fastMax(dashLenPx, 1);
+                                        const int gap = fastMax(gapLenPx, 1);
+                                        int t = 0;
+                                        while (t < (int)len)
+                                        {
+                                            const int t2 = fastMin(t + dash, (int)len);
+                                            const cv::Point pt1 = p1 + dir * (float)t;
+                                            const cv::Point pt2 = p1 + dir * (float)t2;
+                                            cv::line(frameBGR, pt1, pt2, colorLine, thicknessLineScaled, lineType, shift);
+                                            t += dash + gap;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Circles
+                        for (auto part = 0 ; part < numberKeypoints ; part++)
+                        {
+                            const auto faceIndex = (person * numberKeypoints + part) * keypoints.getSize(2);
+                            if (keypoints[faceIndex+2] > threshold)
+                            {
+                                const auto radiusScaled = fastMax(1, positiveIntRound(radius * poseScales[part % numberScales] * circleScale));
+                                const auto thicknessCircleScaled = (forceFilledCircles ? -1 : positiveIntRound(
+                                    thicknessCircleBase * poseScales[part % numberScales]));
+                                const auto colorIndex = part*3;
+                                const cv::Scalar colorPoint{
+                                    colorsPoints[(colorIndex+2) % numberColorsPoints],
+                                    colorsPoints[(colorIndex+1) % numberColorsPoints],
+                                    colorsPoints[colorIndex % numberColorsPoints]
+                                };
+                                const cv::Point center{positiveIntRound(keypoints[faceIndex]),
+                                                       positiveIntRound(keypoints[faceIndex+1])};
+                                cv::circle(frameBGR, center, radiusScaled, colorPoint, thicknessCircleScaled, lineType, shift);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
+        }
+    }
+    template OP_API void renderKeypointsCpuCustom(
+        Array<float>& frameArray, const Array<float>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<float> colorsPoints, const std::vector<float> colorsLines,
+        const float thicknessCircleRatio, const float thicknessLineRatioWRTCircle,
+        const std::vector<float>& poseScales, const float threshold,
+        const float circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+    template OP_API void renderKeypointsCpuCustom(
+        Array<double>& frameArray, const Array<double>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<double> colorsPoints, const std::vector<double> colorsLines,
+        const double thicknessCircleRatio, const double thicknessLineRatioWRTCircle,
+        const std::vector<double>& poseScales, const double threshold,
+        const double circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+
+    template <typename T>
+    void renderKeypointsCpuCustomPerPair(
+        Array<T>& frameArray, const Array<T>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<T> colorsPoints, const std::vector<T> colorsLinesPerPair,
+        const T thicknessCircleRatio, const T thicknessLineRatioWRTCircle,
+        const std::vector<T>& poseScales, const T threshold,
+        const T circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx)
+    {
+        try
+        {
+            if (!frameArray.empty())
+            {
+                auto frame = frameArray.getCvMat();
+                cv::Mat cvFrame = OP_OP2CVMAT(frame);
+                if (cvFrame.channels() != 3)
+                    error(errorMessage, __LINE__, __FUNCTION__, __FILE__);
+
+                const auto width = cvFrame.size[1];
+                const auto height = cvFrame.size[0];
+                const auto area = width * height;
+                cv::Mat frameBGR(height, width, CV_32FC3, cvFrame.data);
+
+                const auto lineType = 8;
+                const auto shift = 0;
+                const auto numberColorsPoints = colorsPoints.size();
+                const auto numberPairs = pairs.size() / 2;
+                const auto numberScales = poseScales.size();
+                const auto thresholdRectangle = T(0.1);
+                const auto numberKeypoints = keypoints.getSize(1);
+
+                for (auto person = 0 ; person < keypoints.getSize(0) ; person++)
+                {
+                    const auto personRectangle = getKeypointsRectangle(keypoints, person, thresholdRectangle);
+                    if (personRectangle.area() > 0)
+                    {
+                        const auto ratioAreas = fastMin(
+                            T(1), fastMax(
+                                personRectangle.width/(T)width, personRectangle.height/(T)height));
+                        const auto thicknessRatio = fastMax(
+                            positiveIntRound(std::sqrt(area)* thicknessCircleRatio * ratioAreas), 2);
+                        const auto thicknessCircleBase = (forceFilledCircles ? -1 : fastMax(1, (ratioAreas > T(0.05) ? thicknessRatio : -1)));
+                        const auto thicknessLine = fastMax(1, positiveIntRound(thicknessRatio * thicknessLineRatioWRTCircle));
+                        const auto radius = thicknessRatio / 2;
+
+                        // Lines - use per-pair colors
+                        for (auto pairIdx = 0u ; pairIdx < pairs.size() ; pairIdx+=2)
+                        {
+                            const auto pairNum = pairIdx / 2;
+                            const auto index1 = (person * numberKeypoints + pairs[pairIdx]) * keypoints.getSize(2);
+                            const auto index2 = (person * numberKeypoints + pairs[pairIdx+1]) * keypoints.getSize(2);
+                            if (keypoints[index1+2] > threshold && keypoints[index2+2] > threshold)
+                            {
+                                const auto thicknessLineScaled = (thinLinePx > 0 ? thinLinePx : positiveIntRound(
+                                    thicknessLine * poseScales[pairs[pairIdx+1] % numberScales]));
+                                const auto colorIdx = pairNum * 3;
+                                const cv::Scalar colorLine{
+                                    colorsLinesPerPair[colorIdx+2],
+                                    colorsLinesPerPair[colorIdx+1],
+                                    colorsLinesPerPair[colorIdx]
+                                };
+                                const cv::Point keypoint1{
+                                    positiveIntRound(keypoints[index1]), positiveIntRound(keypoints[index1+1])};
+                                const cv::Point keypoint2{
+                                    positiveIntRound(keypoints[index2]), positiveIntRound(keypoints[index2+1])};
+                                if (!dashedLines)
+                                    cv::line(frameBGR, keypoint1, keypoint2, colorLine, thicknessLineScaled, lineType, shift);
+                                else
+                                {
+                                    // Dotted line: smaller segments than dashed
+                                    const cv::Point2f p1{(float)keypoint1.x, (float)keypoint1.y};
+                                    const cv::Point2f p2{(float)keypoint2.x, (float)keypoint2.y};
+                                    const cv::Point2f d = p2 - p1;
+                                    const auto len = std::sqrt(d.x*d.x + d.y*d.y);
+                                    if (len > 1.f)
+                                    {
+                                        const cv::Point2f dir = d * (1.f / len);
+                                        const int dot = fastMax(dashLenPx, 1);
+                                        const int gap = fastMax(gapLenPx, 1);
+                                        int t = 0;
+                                        while (t < (int)len)
+                                        {
+                                            const int t2 = fastMin(t + dot, (int)len);
+                                            const cv::Point pt1 = p1 + dir * (float)t;
+                                            const cv::Point pt2 = p1 + dir * (float)t2;
+                                            cv::line(frameBGR, pt1, pt2, colorLine, thicknessLineScaled, lineType, shift);
+                                            t += dot + gap;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Circles
+                        for (auto part = 0 ; part < numberKeypoints ; part++)
+                        {
+                            const auto faceIndex = (person * numberKeypoints + part) * keypoints.getSize(2);
+                            if (keypoints[faceIndex+2] > threshold)
+                            {
+                                const auto radiusScaled = fastMax(1, positiveIntRound(radius * poseScales[part % numberScales] * circleScale));
+                                const auto thicknessCircleScaled = (forceFilledCircles ? -1 : positiveIntRound(
+                                    thicknessCircleBase * poseScales[part % numberScales]));
+                                const auto colorIndex = part*3;
+                                const cv::Scalar colorPoint{
+                                    colorsPoints[(colorIndex+2) % numberColorsPoints],
+                                    colorsPoints[(colorIndex+1) % numberColorsPoints],
+                                    colorsPoints[colorIndex % numberColorsPoints]
+                                };
+                                const cv::Point center{positiveIntRound(keypoints[faceIndex]),
+                                                       positiveIntRound(keypoints[faceIndex+1])};
+                                cv::circle(frameBGR, center, radiusScaled, colorPoint, thicknessCircleScaled, lineType, shift);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (const std::exception& e)
+        {
+            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
+        }
+    }
+    template OP_API void renderKeypointsCpuCustomPerPair(
+        Array<float>& frameArray, const Array<float>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<float> colorsPoints, const std::vector<float> colorsLinesPerPair,
+        const float thicknessCircleRatio, const float thicknessLineRatioWRTCircle,
+        const std::vector<float>& poseScales, const float threshold,
+        const float circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+    template OP_API void renderKeypointsCpuCustomPerPair(
+        Array<double>& frameArray, const Array<double>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<double> colorsPoints, const std::vector<double> colorsLinesPerPair,
+        const double thicknessCircleRatio, const double thicknessLineRatioWRTCircle,
+        const std::vector<double>& poseScales, const double threshold,
+        const double circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+
+    template <typename T>
     Rectangle<T> getKeypointsRectangle(
         const Array<T>& keypoints, const int person, const T threshold, const int firstIndex, const int lastIndex)
     {

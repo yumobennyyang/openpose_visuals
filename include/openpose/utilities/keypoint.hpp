@@ -26,6 +26,26 @@ namespace op
         const std::vector<T> colors, const T thicknessCircleRatio, const T thicknessLineRatioWRTCircle,
         const std::vector<T>& poseScales, const T threshold);
 
+    // Customizable variant allowing distinct colors for points vs. lines and dashed/filled options
+    template <typename T>
+    void renderKeypointsCpuCustom(
+        Array<T>& frameArray, const Array<T>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<T> colorsPoints, const std::vector<T> colorsLines,
+        const T thicknessCircleRatio, const T thicknessLineRatioWRTCircle,
+        const std::vector<T>& poseScales, const T threshold,
+        const T circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+
+    // Variant with per-pair line colors (colorsLinesPerPair has 3*numPairs elements: RGB for each pair)
+    template <typename T>
+    void renderKeypointsCpuCustomPerPair(
+        Array<T>& frameArray, const Array<T>& keypoints, const std::vector<unsigned int>& pairs,
+        const std::vector<T> colorsPoints, const std::vector<T> colorsLinesPerPair,
+        const T thicknessCircleRatio, const T thicknessLineRatioWRTCircle,
+        const std::vector<T>& poseScales, const T threshold,
+        const T circleScale, const bool forceFilledCircles,
+        const bool dashedLines, const int dashLenPx, const int gapLenPx, const int thinLinePx);
+
     template <typename T>
     Rectangle<T> getKeypointsRectangle(
         const Array<T>& keypoints, const int person, const T threshold, const int firstIndex = 0,
