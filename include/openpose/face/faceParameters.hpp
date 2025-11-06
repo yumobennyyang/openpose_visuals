@@ -16,7 +16,7 @@ namespace op
         58,59,  59,48,  60,61,  61,62,  62,63,  63,64,  64,65,  65,66,  66,67,  67,60
     #define FACE_SCALES_RENDER_GPU 1
     const std::vector<unsigned int> FACE_PAIRS_RENDER {FACE_PAIRS_RENDER_GPU};
-    #define FACE_COLORS_RENDER_GPU 255.f,    255.f,    255.f
+    #define FACE_COLORS_RENDER_GPU 0.f,    255.f,    0.f
     const std::vector<float> FACE_COLORS_RENDER{FACE_COLORS_RENDER_GPU};
     const std::vector<float> FACE_SCALES_RENDER{FACE_SCALES_RENDER_GPU};
 
