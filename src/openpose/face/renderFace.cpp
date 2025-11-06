@@ -24,11 +24,11 @@ namespace op
                 // - Lines: thin white dashed
                 const std::vector<float> facePointColors {0.f, 255.f, 0.f};
                 const std::vector<float> faceLineColors  {255.f, 255.f, 255.f};
-                const float circleScale = 0.75f; // slightly smaller
+                const float circleScale = 0.65f; // slightly smaller
                 const bool forceFilledCircles = true; // opaque filled
                 const bool dashedLines = true;
-                const int dashLenPx = 6;
-                const int gapLenPx = 6;
+                const int dashLenPx = 12;
+                const int gapLenPx = 12;
                 const int thinLinePx = 1; // thin
 
                 renderKeypointsCpuCustom(
