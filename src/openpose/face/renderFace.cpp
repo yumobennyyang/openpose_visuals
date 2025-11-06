@@ -22,7 +22,7 @@ namespace op
                 // - Points: opaque orange RGB(239,106,17)
                 // - Smaller circles
                 // - Lines: thin white dashed
-                const std::vector<float> facePointColors {239.f, 106.f, 17.f};
+                const std::vector<float> facePointColors {0.f, 255.f, 0.f};
                 const std::vector<float> faceLineColors  {255.f, 255.f, 255.f};
                 const float circleScale = 0.75f; // slightly smaller
                 const bool forceFilledCircles = true; // opaque filled
