@@ -6,6 +6,43 @@
 
 namespace op
 {
+    // Helper: determine if a body part should be excluded from rendering
+    inline bool isExcludedBodyPart(const unsigned int partIndex, const PoseModel poseModel)
+    {
+        // BODY_25 mapping: exclude eyes (15, 16) and ears (17, 18)
+        if (poseModel == PoseModel::BODY_25 || poseModel == PoseModel::BODY_25D || poseModel == PoseModel::BODY_25E)
+        {
+            static const std::set<unsigned int> excludedParts{15, 16, 17, 18}; // REye, LEye, REar, LEar
+            return excludedParts.count(partIndex) > 0;
+        }
+        // COCO mapping: exclude eyes (14, 15) and ears (16, 17)
+        else if (poseModel == PoseModel::COCO_18)
+        {
+            static const std::set<unsigned int> excludedParts{14, 15, 16, 17}; // REye, LEye, REar, LEar
+            return excludedParts.count(partIndex) > 0;
+        }
+        // BODY_19 mapping: exclude eyes (15, 16) and ears (17, 18)
+        else if (poseModel == PoseModel::BODY_19 || poseModel == PoseModel::BODY_19E || poseModel == PoseModel::BODY_19N || poseModel == PoseModel::BODY_19_X2)
+        {
+            static const std::set<unsigned int> excludedParts{15, 16, 17, 18}; // REye, LEye, REar, LEar
+            return excludedParts.count(partIndex) > 0;
+        }
+        // BODY_23 mapping: exclude eyes (13, 14) and ears (15, 16)
+        else if (poseModel == PoseModel::BODY_23)
+        {
+            static const std::set<unsigned int> excludedParts{13, 14, 15, 16}; // REye, LEye, REar, LEar
+            return excludedParts.count(partIndex) > 0;
+        }
+        return false;
+    }
+
+    // Helper: determine if a line segment should be excluded from rendering
+    inline bool isExcludedSegment(const unsigned int partA, const unsigned int partB, const PoseModel poseModel)
+    {
+        // Exclude if either endpoint is an eye or ear
+        return isExcludedBodyPart(partA, poseModel) || isExcludedBodyPart(partB, poseModel);
+    }
+
     // Helper: determine if a body part is left, right, or center
     // Returns: -1=left, 0=center, 1=right
     inline int getBodyPartSide(const unsigned int partIndex, const PoseModel poseModel)
@@ -107,13 +144,26 @@ namespace op
                 const auto& pairs = getPoseBodyPartPairsRender(poseModel);
                 const auto& poseScales = getPoseScales(poseModel);
 
-                // Build per-pair color array: left=blue, right=red, center/mixed=white
+                // Build filtered pairs and colors, excluding eye-ear segments
+                std::vector<unsigned int> filteredPairs;
                 std::vector<float> colorsLinesPerPair;
-                colorsLinesPerPair.reserve((pairs.size() / 2) * 3);
+                
                 for (auto pairIdx = 0u; pairIdx < pairs.size(); pairIdx += 2)
                 {
+                    const unsigned int partA = pairs[pairIdx];
+                    const unsigned int partB = pairs[pairIdx + 1];
+                    
+                    // Skip this segment if it involves eyes or ears
+                    if (isExcludedSegment(partA, partB, poseModel))
+                        continue;
+                    
+                    // Add the pair
+                    filteredPairs.push_back(partA);
+                    filteredPairs.push_back(partB);
+                    
+                    // Add color for this pair
                     float r, g, b;
-                    getLineColorForPair(pairs[pairIdx], pairs[pairIdx+1], poseModel, r, g, b);
+                    getLineColorForPair(partA, partB, poseModel, r, g, b);
                     colorsLinesPerPair.push_back(b); // BGR order
                     colorsLinesPerPair.push_back(g);
                     colorsLinesPerPair.push_back(r);
@@ -133,7 +183,7 @@ namespace op
                 const int thinLinePx = 1; // slightly thicker than face
 
                 renderKeypointsCpuCustomPerPair(
-                    frameArray, poseKeypoints, pairs,
+                    frameArray, poseKeypoints, filteredPairs,
                     colorsPoints, colorsLinesPerPair,
                     thicknessCircleRatio, thicknessLineRatioWRTCircle, poseScales, renderThreshold,
                     circleScale, forceFilledCircles,
